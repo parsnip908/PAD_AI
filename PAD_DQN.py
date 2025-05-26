@@ -113,7 +113,7 @@ def compute_reward(state, action, next_state, done):
 
     if action == 4:
         reward -= 5
-    elif torch.equal(state[2], next_state[2]):
+    elif torch.equal(state[2], next_state[2]) and state[2][2] != 0:
         reward -= 20
     
     return reward
@@ -122,6 +122,8 @@ def get_next_state(state, action):
     """Compute next state given current state and action."""
     # print(state)
     # print(action)
+    if state[2][2] == 0:
+        return None
 
     row, col = int(state[2][0].item()), int(state[2][1].item())
     swap_row, swap_col = row, col
@@ -135,7 +137,7 @@ def get_next_state(state, action):
     elif action == 3:     # right
         swap_col += 1
     else:
-        return state  # Invalid direction
+        return None  # Invalid direction
 
     if 0 <= swap_row < 5 and 0 <= swap_col < 6:
         with torch.no_grad():
@@ -156,11 +158,12 @@ def get_next_state(state, action):
         # print(board)
         # print(game)
         return (board, pos, game)
-    return state
+    return None
 
 def is_done(game, action):
     if game[2] == 0 or action == 4:
         return True
+
     return False
 
 # Replay Buffer
@@ -181,10 +184,12 @@ class ReplayBuffer:
 
 
 # Training step
+loss = 0
 def train_step():
     if len(replay_buffer) < BATCH_SIZE:
         return
 
+    global loss
     states, actions, rewards, next_states, dones = replay_buffer.sample(BATCH_SIZE)
 
     # Convert to tensors
@@ -210,6 +215,8 @@ def train_step():
 
     # Loss and optimization
     loss = F.mse_loss(q_values, target_q_values)
+
+    global episode
 
     # print(q_values)
     # print(target_q_values)
@@ -271,12 +278,13 @@ if __name__ == "__main__":
 
         init_score(board)
         state = (board, position, game)
+        q_vals = 0
 
         done = False
         while not done:
             # ε-greedy action selection
             epsilon = max(0.10, 1.0 - episode / 8000)
-            if random.random() < epsilon:
+            if random.random() < epsilon and not (episode % TARGET_UPDATE_FREQ) == 0:
                 action = random.randint(0, NUM_ACTIONS-1)
             else:
                 with torch.no_grad():
@@ -290,20 +298,27 @@ if __name__ == "__main__":
             # Apply action
             
             next_state = get_next_state(state, action)
-            done = is_done(state[2], action)
+            done = (next_state == None)
+            if done:
+                next_state = state
+            
             reward = compute_reward(state, action, next_state, done)
 
             # Save to replay buffer
             replay_buffer.push(state, action, reward, next_state, done)
 
+            # Train
+            train_step()
+
             if episode % TARGET_UPDATE_FREQ == 0:
-                print(state[0], state[1].int64(), state[2], action, reward, sep='\n')
+                print(state[0], state[1].int(), state[2], action, reward, sep='\n')
+                print("Q values:", q_vals)
+                print("loss:", loss)
                 print('-')
+
             # Advance state
             state = next_state
 
-            # Train
-            train_step()
         if episode % TARGET_UPDATE_FREQ == 0:
             print(len(replay_buffer))
             print(f"episode {episode} / 10000")
