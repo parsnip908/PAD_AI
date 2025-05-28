@@ -6,11 +6,9 @@ import numpy as np
 rng = np.random.default_rng()
 
 def gen_board():
-    board = rng.integers(low=0, high=6, size=(5,6))
-    position = rng.integers(low=[0,0], high=[5,6], size=2)
+    board = rng.integers(low=0, high=6, size=(5,6)) #, dtype=np.int8
+    position = rng.integers(low=[0,0], high=[5,6], size=2) #, dtype=np.int8
     return(board, position)
-
-
 
 
 def find_match_3_score(grid):

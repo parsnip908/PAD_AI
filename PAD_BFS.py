@@ -8,10 +8,13 @@ DIRS = {0: "up", 1: "down", 2: "left", 3: "right"}
 # OPPOSITE_DIR = {0: 1, 1: 0, 2: 3, 3: 2}
 OPPOSITE_DIR = [1, 0, 3, 2]
 
+gamma = 0.99
+
 def bfs_best_score(initial_board, initial_pos, max_depth=10, verbose=True, prev_dir=None):
     start_time = time.time()
 
-    best_score = find_match_3_score(initial_board)
+    initial_score = find_match_3_score(initial_board)
+    best_score = initial_score
     best_board = initial_board
     best_action = None
     visited = set()
@@ -23,10 +26,13 @@ def bfs_best_score(initial_board, initial_pos, max_depth=10, verbose=True, prev_
     max_reached_depth = -1
     skip_count = 0
 
+    Q_values = [-20, -20, -20, -20]
+
     while queue:
         board, pos, depth, prev_dir, first_action = queue.popleft()
-        board_key = board.tobytes()
-        state_id = (board_key, tuple(pos))
+        board_key = board.astype(np.uint8).tobytes()
+        pos_key = pos.astype(np.uint8).tobytes()
+        state_id = board_key + pos_key
 
         if state_id in visited:
             skip_count += 1
@@ -38,6 +44,7 @@ def bfs_best_score(initial_board, initial_pos, max_depth=10, verbose=True, prev_
             depth_time[depth] = time.time() - start_time
             if verbose:
                 print(f"Reached depth {depth:>2} at {depth_time[depth]:.4f} seconds and skipped {skip_count:>6} states")
+                # print(state_id)
             max_reached_depth = depth
 
         if depth == max_depth:
@@ -46,13 +53,17 @@ def bfs_best_score(initial_board, initial_pos, max_depth=10, verbose=True, prev_
                 best_score = score
                 best_board = board
                 best_action = first_action
+            Q = score #* (gamma**depth)
+            if Q > Q_values[first_action]:
+                Q_values[first_action] = Q
             continue
+
 
         for direction in range(4):
             if prev_dir is not None and direction == OPPOSITE_DIR[prev_dir]:
                 continue  # Avoid undoing last move
 
-            new_board = swap_adjacent(board.copy(), pos, direction)
+            new_board = swap_adjacent(board, pos, direction)
             new_pos = pos.copy()
             if direction == 0 and pos[0] > 0: new_pos[0] -= 1
             elif direction == 1 and pos[0] < 4: new_pos[0] += 1
@@ -66,6 +77,7 @@ def bfs_best_score(initial_board, initial_pos, max_depth=10, verbose=True, prev_
     total_time = time.time() - start_time
     if verbose:
         print(f"Total time taken: {total_time:.4f} seconds")
+        print(Q_values)
     return best_score, best_board, DIRS[best_action] if best_action is not None else None
 
 
