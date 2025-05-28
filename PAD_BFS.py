@@ -77,8 +77,8 @@ test_board = [[5, 2, 4, 5, 5, 1],
 test_pos = [3, 2]
 
 def play_game_with_bfs(max_moves=10, search_depth=10, verbose=True):
-    # board, pos = gen_board()
-    board, pos = np.array(test_board), np.array(test_pos)
+    board, pos = gen_board()
+    # board, pos = np.array(test_board), np.array(test_pos)
 
 
     move_count = 0
