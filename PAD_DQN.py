@@ -9,11 +9,12 @@ import numpy as np
 import board_utils
 
 # Constants
-BATCH_SIZE = 32
-GAMMA = 0.99
+BATCH_SIZE = 64
+GAMMA = 0.95
 LR = 1e-3
 BUFFER_SIZE = 10000
 TARGET_UPDATE_FREQ = 100
+TOTAL_EPISODES = 20000
 NUM_ACTIONS = 4
 
 # Device setup
@@ -41,8 +42,8 @@ class PAD_DQN(nn.Module):
             nn.ReLU(),
             nn.Linear(4096, 2048),
             nn.ReLU(),
-            nn.Linear(2048, 2048),
-            nn.ReLU(),
+            # nn.Linear(2048, 2048),
+            # nn.ReLU(),
             nn.Linear(2048, 1024),
             nn.ReLU(),
             nn.Linear(1024, 4)  # 5 actions: up/down/left/right/finish
@@ -104,8 +105,8 @@ def compute_reward(state, action, next_state, done):
     new_prox_score = board_utils.proximity_score(next_state[0])
 
     reward = new_match_score - old_match_score
-    if new_prox_score > old_prox_score:
-        reward += new_prox_score - old_prox_score
+    # if new_prox_score > old_prox_score:
+    reward += new_prox_score - old_prox_score
 
     old_match_score = new_match_score
     old_prox_score = new_prox_score
@@ -265,25 +266,28 @@ if __name__ == "__main__":
     replay_buffer = ReplayBuffer(BUFFER_SIZE)
 
     # Main loop
-    for episode in range(15000):  # number of episodes
+    for episode in range(TOTAL_EPISODES):  # number of episodes
         # Initialize state
-        board = torch.randint(0, 6, (5, 6))
-        player_y = torch.randint(0, 5, (1,))
-        player_x = torch.randint(0, 6, (1,))
-        timer = torch.randint(90, 100, (1,))
-        game = torch.cat([player_y, player_x, timer], 0)
+        if episode % 1 == 0:
+            board = torch.randint(0, 6, (5, 6))
+            player_y = torch.randint(0, 5, (1,))
+            player_x = torch.randint(0, 6, (1,))
+            timer = torch.randint(90, 100, (1,))
+            game = torch.cat([player_y, player_x, timer], 0)
         
-        position = torch.zeros(5,6)
-        position[game[0]][game[1]] = 1
+            position = torch.zeros(5,6)
+            position[game[0]][game[1]] = 1
 
-        init_score(board)
-        state = (board, position, game)
+            initial_state = (board, position, game)
+
+        state = initial_state
+        init_score(state[0])
         q_vals = 0
 
         done = False
         while not done:
             # ε-greedy action selection
-            epsilon = max(0.10, 1.0 - episode / 8000)
+            epsilon = max(0.10, 1.0 - episode / (TOTAL_EPISODES*0.9))
             if random.random() < epsilon and not (episode % TARGET_UPDATE_FREQ) == 0:
                 action = random.randint(0, NUM_ACTIONS-1)
             else:
@@ -321,7 +325,7 @@ if __name__ == "__main__":
 
         if episode % TARGET_UPDATE_FREQ == 0:
             print(len(replay_buffer))
-            print(f"episode {episode} / 10000")
+            print(f"episode {episode} / {TOTAL_EPISODES}")
             print("----------------")
 
         # Update target network
