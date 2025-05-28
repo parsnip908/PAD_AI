@@ -6,7 +6,7 @@ import random
 from collections import deque
 import numpy as np
 
-import board_utils
+import board_utils_torch as board_utils
 
 # Constants
 BATCH_SIZE = 64

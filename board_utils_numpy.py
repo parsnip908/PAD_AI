@@ -1,26 +1,24 @@
 from collections import deque
 from collections import defaultdict
-import torch
+import numpy as np
 
-score_table = {
-    3: 10,
-    4: 20,
-    5: 40,
-    6: 70,
-    7: 100,
-    8: 130,
-    9: 170,
-    10: 210,
-    11: 250,
-    12: 300
-}
+
+rng = np.random.default_rng()
+
+def gen_board():
+    board = rng.integers(low=0, high=6, size=(5,6))
+    position = rng.integers(low=[0,0], high=[5,6], size=2)
+    return(board, position)
+
+
+
 
 def find_match_3_score(grid):
     rows, cols = len(grid), len(grid[0])
 
-    def get_score(length):
-        max_len = max(score_table)
-        return score_table.get(length, score_table[max_len])
+    # def get_score(length):
+    #     max_len = max(score_table)
+    #     return score_table.get(length, score_table[max_len])
 
     visited = [[False] * cols for _ in range(rows)]
     matchable = [[False] * cols for _ in range(rows)]
@@ -35,6 +33,8 @@ def find_match_3_score(grid):
             if grid[i][j] == grid[i + 1][j] == grid[i + 2][j]:
                 matchable[i][j] = matchable[i + 1][j] = matchable[i + 2][j] = True
 
+    # print(np.array(matchable))
+
     # Step 2: Flood-fill to group connected matchable regions
     def bfs(start_i, start_j):
         q = deque()
@@ -46,19 +46,29 @@ def find_match_3_score(grid):
         while q:
             i, j = q.popleft()
 
-            # Check right
-            ni, nj = i, j + 1
-            if nj < cols and not visited[ni][nj] and matchable[ni][nj] and grid[ni][nj] == val:
-                visited[ni][nj] = True
-                q.append((ni, nj))
-                count += 1
+            # if visited[i][j]:
+            #     continue
 
-            # Check down
-            ni, nj = i + 1, j
-            if ni < rows and not visited[ni][nj] and matchable[ni][nj] and grid[ni][nj] == val:
-                visited[ni][nj] = True
-                q.append((ni, nj))
-                count += 1
+            for ni, nj in [(i, j+1), (i+1, j), (i, j-1), (i-1, j)]:
+                if ni<0 or ni >= rows or nj < 0 or nj >= cols or visited[ni][nj]:
+                    continue
+                if matchable[ni][nj] and grid[ni][nj] == val:
+                    visited[ni][nj] = True
+                    q.append((ni, nj))
+                    count += 1
+            # # Check right
+            # ni, nj = i, j + 1
+            # if nj < cols and not visited[ni][nj] and matchable[ni][nj] and grid[ni][nj] == val:
+            #     visited[ni][nj] = True
+            #     q.append((ni, nj))
+            #     count += 1
+
+            # # Check down
+            # ni, nj = i + 1, j
+            # if ni < rows and not visited[ni][nj] and matchable[ni][nj] and grid[ni][nj] == val:
+            #     visited[ni][nj] = True
+            #     q.append((ni, nj))
+            #     count += 1
 
         return count
 
@@ -67,7 +77,7 @@ def find_match_3_score(grid):
         for j in range(cols):
             if matchable[i][j] and not visited[i][j]:
                 group_size = bfs(i, j)
-                total_score += get_score(group_size)
+                total_score += (group_size-2)*10 #get_score(group_size)
 
     return total_score
 
@@ -127,10 +137,9 @@ def swap_adjacent(board, location, direction):
         return board  # Invalid direction
 
     if 0 <= swap_row < 5 and 0 <= swap_col < 6:
-        with torch.no_grad():
-            board = board.clone()
-            temp = board[row, col].item()
-            board[row, col] = board[swap_row, swap_col]
-            board[swap_row, swap_col] = temp
+        board = board.copy()
+        temp = board[row, col].item()
+        board[row, col] = board[swap_row, swap_col]
+        board[swap_row, swap_col] = temp
 
     return board
