@@ -1,19 +1,22 @@
 // board_utils.cpp
+
 #include <array>
 #include <vector>
 #include <queue>
-#include <unordered_map>
-#include <unordered_set>
 #include <random>
 #include <algorithm>
 
 constexpr int ROWS = 5;
 constexpr int COLS = 6;
+constexpr int COLORS = 6;
 using Board = std::array<std::array<int, COLS>, ROWS>;
+
+constexpr std::array<int, 4> dr = {-1, 1, 0, 0};
+constexpr std::array<int, 4> dc = {0, 0, -1, 1};
 
 Board gen_board() {
     static std::mt19937 rng(std::random_device{}());
-    std::uniform_int_distribution<int> dist(0, 5);
+    std::uniform_int_distribution<int> dist(0, COLORS - 1);
     Board board;
     for (auto& row : board)
         for (auto& cell : row)
@@ -28,10 +31,9 @@ std::array<int, 2> gen_position() {
     return {dist_row(rng), dist_col(rng)};
 }
 
+// direction: 0 = up, 1 = down, 2 = left, 3 = right
 Board swap_adjacent(Board board, const std::array<int, 2>& loc, int direction) {
     int r = loc[0], c = loc[1];
-    int dr[4] = {-1, 1, 0, 0};
-    int dc[4] = {0, 0, -1, 1};
     int nr = r + dr[direction], nc = c + dc[direction];
     if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
         std::swap(board[r][c], board[nr][nc]);
@@ -39,11 +41,13 @@ Board swap_adjacent(Board board, const std::array<int, 2>& loc, int direction) {
     return board;
 }
 
+// Returns score for all match-3 (and larger) groups.
+// Matches are found as in Puzzles & Dragons: adjacent matches are merged.
 int find_match_3_score(const Board& grid) {
     std::vector<std::vector<bool>> visited(ROWS, std::vector<bool>(COLS, false));
     std::vector<std::vector<bool>> matchable(ROWS, std::vector<bool>(COLS, false));
 
-    // Match-3 horizontal and vertical
+    // Mark all horizontal and vertical match-3 locations as matchable.
     for (int i = 0; i < ROWS; ++i)
         for (int j = 0; j < COLS - 2; ++j)
             if (grid[i][j] == grid[i][j+1] && grid[i][j] == grid[i][j+2])
@@ -54,21 +58,22 @@ int find_match_3_score(const Board& grid) {
             if (grid[i][j] == grid[i+1][j] && grid[i][j] == grid[i+2][j])
                 matchable[i][j] = matchable[i+1][j] = matchable[i+2][j] = true;
 
+    // Group connected matchable cells using BFS.
     auto bfs = [&](int i, int j) {
         int count = 1;
         std::queue<std::pair<int,int>> q;
-        q.push({i,j});
+        q.push({i, j});
         visited[i][j] = true;
         int val = grid[i][j];
         while (!q.empty()) {
             auto [x, y] = q.front(); q.pop();
-            for (auto [dx, dy] : std::vector<std::pair<int,int>>{{0,1},{1,0},{0,-1},{-1,0}}) {
-                int nx = x + dx, ny = y + dy;
+            for (int d = 0; d < 4; ++d) {
+                int nx = x + dr[d], ny = y + dc[d];
                 if (nx < 0 || ny < 0 || nx >= ROWS || ny >= COLS) continue;
                 if (!visited[nx][ny] && matchable[nx][ny] && grid[nx][ny] == val) {
                     visited[nx][ny] = true;
                     q.push({nx, ny});
-                    count++;
+                    ++count;
                 }
             }
         }
@@ -82,6 +87,5 @@ int find_match_3_score(const Board& grid) {
                 int group_size = bfs(i, j);
                 total_score += (group_size - 2) * 10;
             }
-
     return total_score;
 }

@@ -1,4 +1,5 @@
 // pad_bfs.cpp
+
 #include <iostream>
 #include <queue>
 #include <unordered_set>
@@ -7,8 +8,7 @@
 #include <string>
 #include <sstream>
 #include <optional>
-
-#include "board_utils.cpp"
+#include "board_utils.cpp" // Prefer .h/.cpp split, but .cpp is fine for quick builds.
 
 struct StateHash {
     std::size_t operator()(const std::pair<Board, std::array<int, 2>>& s) const {
@@ -24,23 +24,26 @@ struct StateHash {
 
 const std::array<std::string, 4> DIRS = {"up", "down", "left", "right"};
 const std::array<int, 4> OPPOSITE_DIR = {1, 0, 3, 2};
+// constexpr std::array<int, 4> dr = {-1, 1, 0, 0};
+// constexpr std::array<int, 4> dc = {0, 0, -1, 1};
 
 void bfs_best_score(const Board& initial_board, const std::array<int, 2>& initial_pos, int max_depth) {
-    auto start_time = std::chrono::high_resolution_clock::now();
+    using Clock = std::chrono::high_resolution_clock;
+    auto start_time = Clock::now();
 
     int best_score = 0;
     Board best_board = initial_board;
     std::optional<int> best_action;
 
     std::unordered_set<std::pair<Board, std::array<int, 2>>, StateHash> visited;
-    std::queue<std::tuple<Board, std::array<int, 2>, int, std::optional<int>, std::optional<int>>> queue;
-    queue.push({initial_board, initial_pos, 0, std::nullopt, std::nullopt});
+    std::queue<std::tuple<Board, std::array<int, 2>, int, std::optional<int>, std::optional<int>>> q;
+    q.push({initial_board, initial_pos, 0, std::nullopt, std::nullopt});
 
     int max_depth_reached = -1;
     int skip_count = 0;
 
-    while (!queue.empty()) {
-        auto [board, pos, depth, prev_dir, first_action] = queue.front(); queue.pop();
+    while (!q.empty()) {
+        auto [board, pos, depth, prev_dir, first_action] = q.front(); q.pop();
 
         if (!visited.insert({board, pos}).second) {
             ++skip_count;
@@ -48,7 +51,7 @@ void bfs_best_score(const Board& initial_board, const std::array<int, 2>& initia
         }
 
         if (depth > max_depth_reached) {
-            auto now = std::chrono::high_resolution_clock::now();
+            auto now = Clock::now();
             std::chrono::duration<double> elapsed = now - start_time;
             std::cout << "Reached depth " << depth << " at " << elapsed.count() << " seconds, skipped " << skip_count << " states\n";
             max_depth_reached = depth;
@@ -67,23 +70,22 @@ void bfs_best_score(const Board& initial_board, const std::array<int, 2>& initia
         for (int dir = 0; dir < 4; ++dir) {
             if (prev_dir && dir == OPPOSITE_DIR[*prev_dir]) continue;
 
-            Board new_board = swap_adjacent(board, pos, dir);
-            std::array<int, 2> new_pos = pos;
-            if (dir == 0 && pos[0] > 0) new_pos[0]--;
-            else if (dir == 1 && pos[0] < ROWS - 1) new_pos[0]++;
-            else if (dir == 2 && pos[1] > 0) new_pos[1]--;
-            else if (dir == 3 && pos[1] < COLS - 1) new_pos[1]++;
-            else continue;
+            int nr = pos[0] + dr[dir];
+            int nc = pos[1] + dc[dir];
+            if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
 
-            queue.push({new_board, new_pos, depth + 1, dir, depth == 0 ? std::optional<int>{dir} : first_action});
+            Board new_board = swap_adjacent(board, pos, dir);
+            std::array<int, 2> new_pos = {nr, nc};
+            q.push({new_board, new_pos, depth + 1, dir, depth == 0 ? std::optional<int>{dir} : first_action});
         }
     }
 
-    auto total_time = std::chrono::high_resolution_clock::now() - start_time;
+    auto total_time = Clock::now() - start_time;
     std::cout << "Total time: " << std::chrono::duration<double>(total_time).count() << " seconds\n";
     std::cout << "Best score: " << best_score << ", First action: "
               << (best_action ? DIRS[*best_action] : "None") << "\n";
-    
+
+    std::cout << "Best board:\n";
     for (const auto& row : best_board) {
         for (int v : row) std::cout << v << " ";
         std::cout << "\n";
