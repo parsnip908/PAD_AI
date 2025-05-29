@@ -58,33 +58,32 @@ int find_match_3_score(const Board& grid) {
             if (grid[i][j] == grid[i+1][j] && grid[i][j] == grid[i+2][j])
                 matchable[i][j] = matchable[i+1][j] = matchable[i+2][j] = true;
 
-    // Group connected matchable cells using BFS.
-    auto bfs = [&](int i, int j) {
-        int count = 1;
-        std::queue<std::pair<int,int>> q;
-        q.push({i, j});
-        visited[i][j] = true;
-        int val = grid[i][j];
-        while (!q.empty()) {
-            auto [x, y] = q.front(); q.pop();
-            for (int d = 0; d < 4; ++d) {
-                int nx = x + dr[d], ny = y + dc[d];
-                if (nx < 0 || ny < 0 || nx >= ROWS || ny >= COLS) continue;
-                if (!visited[nx][ny] && matchable[nx][ny] && grid[nx][ny] == val) {
-                    visited[nx][ny] = true;
-                    q.push({nx, ny});
-                    ++count;
-                }
-            }
-        }
-        return count;
-    };
-
     int total_score = 0;
+    std::queue<std::pair<int,int>> q;
     for (int i = 0; i < ROWS; ++i)
         for (int j = 0; j < COLS; ++j)
-            if (matchable[i][j] && !visited[i][j]) {
-                int group_size = bfs(i, j);
+            if (matchable[i][j] && !visited[i][j])
+            {
+                // Group connected matchable cells using BFS.
+                int group_size = 1;
+                q.push({i, j});
+                visited[i][j] = true;
+                int val = grid[i][j];
+                while (!q.empty())
+                {
+                    auto [x, y] = q.front(); q.pop();
+                    for (int d = 0; d < 4; ++d)
+                    {
+                        int nx = x + dr[d], ny = y + dc[d];
+                        if (nx < 0 || ny < 0 || nx >= ROWS || ny >= COLS)
+                            continue;
+                        if (!visited[nx][ny] && matchable[nx][ny] && grid[nx][ny] == val) {
+                            visited[nx][ny] = true;
+                            q.push({nx, ny});
+                            ++group_size;
+                        }
+                    }
+                }
                 total_score += (group_size - 2) * 10;
             }
     return total_score;
