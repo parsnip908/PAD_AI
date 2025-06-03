@@ -57,13 +57,14 @@ void bfs_best_score(const Board& initial_board, const std::array<int, 2>& initia
             max_depth_reached = depth;
         }
 
+        int score = find_match_3_score(board);
+        if (score > best_score) {
+            best_score = score;
+            best_board = board;
+            best_action = first_action;
+        }
+
         if (depth == max_depth) {
-            int score = find_match_3_score(board);
-            if (score > best_score) {
-                best_score = score;
-                best_board = board;
-                best_action = first_action;
-            }
             continue;
         }
 
