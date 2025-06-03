@@ -141,3 +141,12 @@ def swap_adjacent(board, location, direction):
         board[swap_row, swap_col] = temp
 
     return board
+
+
+def find_max_score(board):
+    _, counts = np.unique(board, return_counts=True)
+    total_score = 0
+    for count in counts:
+        if count > 2:
+            total_score += (count-2)*10
+    return total_score
