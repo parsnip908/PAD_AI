@@ -109,17 +109,7 @@ def proximity_score(grid):
 
 
 def swap_adjacent(board, location, direction):
-    """
-    Swaps the value at the given location with an adjacent cell in the specified direction.
-
-    Parameters:
-    - board: torch.Tensor of shape (5, 6)
-    - location: torch.Tensor of shape (>=2,) where location[0]=row, location[1]=col
-    - direction: int, one of {0=up, 1=down, 2=left, 3=right}
-
-    Returns:
-    - torch.Tensor: a new tensor with the swap applied, or the same board if invalid.
-    """
+    # Swaps the value at the given location with an adjacent cell in the specified direction.
     row, col = int(location[0].item()), int(location[1].item())
     swap_row, swap_col = row, col
 

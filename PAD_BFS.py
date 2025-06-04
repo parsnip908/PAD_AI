@@ -2,6 +2,8 @@ import numpy as np
 from collections import deque
 from board_utils_numpy import gen_board, find_match_3_score, swap_adjacent, find_max_score
 import time
+import torch
+from tqdm import tqdm
 
 # Direction mappings
 DIRS = {0: "up", 1: "down", 2: "left", 3: "right"}
@@ -135,7 +137,7 @@ test_board = [[5, 2, 4, 5, 5, 1],
               [5, 3, 4, 1, 4, 2]]
 test_pos = [3, 2]
 
-def play_game_with_bfs(max_moves=10, search_depth=10, verbose=True):
+def play_game_with_bfs(max_moves=10, search_depth=10, verbose=True, save_data=False):
     board, pos = gen_board()
     # board, pos = np.array(test_board), np.array(test_pos)
 
@@ -143,6 +145,7 @@ def play_game_with_bfs(max_moves=10, search_depth=10, verbose=True):
 
     initial_state = (board, pos)
     move_path = []
+    training_data = []
     # prev_dir = None
     max_score = 0
     roaming_mod = 0
@@ -187,7 +190,20 @@ def play_game_with_bfs(max_moves=10, search_depth=10, verbose=True):
         proj_score, _, direction, Q_values = bfs_best_score(board, pos, max_depth=search_depth, verbose=False) #, prev_dir=prev_dir, reject_dirs=reject_dirs
         Q_filtered = Q_values.copy()
         test_dir = True
-        
+
+        if save_data:
+            state_tensor = torch.tensor(board, dtype=torch.int8)
+            pos_tensor = torch.tensor(pos, dtype=torch.int8)
+            moves_left = max_moves - move_count
+            q_tensor = torch.tensor(Q_values, dtype=torch.float32)
+
+            training_data.append({
+                'board': state_tensor,
+                'position': pos_tensor,
+                'moves_left': moves_left,
+                'q_values': q_tensor
+            })
+
         while test_dir:
             Q_filtered[reject_dirs] = -20
             # direction = np.argmax(Q_filtered)
@@ -270,4 +286,33 @@ def play_game_with_bfs(max_moves=10, search_depth=10, verbose=True):
         print(f"\nFinal Match-3 Score: {final_score}")
         print(move_path)
 
-    return board, final_score
+    if save_data:
+        return initial_state, (board, pos), move_path, training_data
+    else:
+        return initial_state, (board, pos), move_path
+
+
+def create_training_data(episodes, game_len, filename, search_depth=10):
+    rng = np.random.default_rng()
+    training_data = []
+    num_files = 0
+    data_count = 0
+    for _ in tqdm(range(episodes), "creating training data"):
+        random_length = rng.integers(low=game_len*0.2, high=game_len)
+        initial_state, end_state, path, data = play_game_with_bfs(max_moves=random_length, search_depth=search_depth, verbose=False, save_data=True)
+        training_data += data
+        if len(training_data) >= 10000:
+            num_files += 1
+            torch.save(training_data, filename+ '-' + str(num_files)+'.pt')
+            data_count += len(training_data)
+            training_data = []
+    if num_files == 0:
+        torch.save(training_data, filename+'.pt')
+    else:
+        torch.save(training_data, filename+ '-' + str(num_files+1)+'.pt')
+
+    print(f"saved {data_count + len(training_data)} data points")
+
+
+if __name__ == "__main__":
+    create_training_data(1000, 100, "Q_dataset1", 10)
