@@ -2,9 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import torch.utils as utils
 import random
 from collections import deque
 import numpy as np
+import time
 
 import board_utils_torch as board_utils
 
@@ -20,6 +22,43 @@ NUM_ACTIONS = 4
 # Device setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("using cuda") if torch.cuda.is_available() else print("using cpu")
+
+class PreTrainDataset(utils.data.Dataset):
+    def __init__(self, filename, num_files):
+        self.data = []
+        if num_files:
+            for i in range(1, num_files):
+                self.data += torch.load(f'{filename}-{i}.pt', weights_only=False)
+        else:
+            self.data += torch.load(f'{filename}.pt', weights_only=False)
+
+        print(len(self.data))
+
+        for i, datapoint in enumerate(self.data):
+            board = datapoint['board'].to(dtype=torch.int64)
+            pos = datapoint['position']
+            moves_left = datapoint['moves_left']
+            q_values = datapoint['q_values'].to(dtype=torch.float32)
+
+            pos_grid = torch.zeros(5,6, dtype=torch.int64)
+            pos_grid[pos[0]][pos[1]] = 1
+
+            game_values = torch.stack([pos[0], pos[1], torch.tensor(moves_left, dtype=torch.int8)]).to(dtype=torch.int64)
+
+            self.data[i] = (board, pos_grid, game_values, q_values)
+        print(len(self.data))
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx]
+
+train_dataset = PreTrainDataset('Q_dataset1', 6)
+train_loader = utils.data.DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+
+test_dataset = PreTrainDataset('Q_dataset1-6', 0)
+test_loader = utils.data.DataLoader(test_dataset, batch_size=10000, shuffle=False)
 
 
 class PAD_DQN(nn.Module):
@@ -83,6 +122,56 @@ class PAD_DQN(nn.Module):
         # x = F.relu(self.fc2(x))
         q_values = self.fc_layers(x)  # Output shape: (B, 5)
         return q_values
+
+
+def pre_train_model():
+    num_epochs = 10
+    for epoch in range(num_epochs):
+        epoch_start = time.time()
+        start_time = epoch_start
+        for i, state in enumerate(train_loader):
+            boards = state[0].to('cuda')
+            positions = state[1].to('cuda')
+            game_values = state[2].to('cuda')
+            q_values = state[3].to('cuda')
+
+            # if i ==0:
+            #     print(boards)
+            #     print(positions)
+            #     print(game_values)
+            #     print(q_values)
+
+            # Forward + Backward + Optimize
+            optimizer.zero_grad()
+            outputs = policy_net(boards, positions, game_values)
+            loss = F.mse_loss(outputs, q_values)
+            loss.backward()
+            optimizer.step()
+
+            if (i + 1) % BATCH_SIZE == 0:
+                end_time = time.time()
+                print('Epoch: [% d/% d], Step: [% d/% d], Loss: %.4f, Time %.2f seconds'
+                        % (epoch + 1, num_epochs, i + 1,
+                           len(train_dataset) // BATCH_SIZE, loss.data.item(),
+                           end_time - start_time))
+                start_time = end_time
+        epoch_end = time.time()
+        print(f"Epoch time: {epoch_end - epoch_start:.2f} seconds")
+
+        for state in test_loader:
+            boards = state[0].to('cuda')
+            positions = state[1].to('cuda')
+            game_values = state[2].to('cuda')
+            q_values = state[3].to('cuda')
+
+            outputs = policy_net(boards, positions, game_values)
+
+            loss = F.mse_loss(outputs, q_values)
+
+        print('Test set loss:', loss.item(), loss)
+        time.sleep(1)
+    time.sleep(3)
+
 
 
 old_match_score = 0
@@ -259,11 +348,13 @@ if __name__ == "__main__":
     # Initialize models and optimizer
     policy_net = PAD_DQN().to(device)
     target_net = PAD_DQN().to(device)
-    target_net.load_state_dict(policy_net.state_dict())
-    target_net.eval()
 
     optimizer = optim.Adam(policy_net.parameters(), lr=LR)
     replay_buffer = ReplayBuffer(BUFFER_SIZE)
+
+    pre_train_model()
+    target_net.load_state_dict(policy_net.state_dict())
+    target_net.eval()
 
     # Main loop
     for episode in range(TOTAL_EPISODES):  # number of episodes
